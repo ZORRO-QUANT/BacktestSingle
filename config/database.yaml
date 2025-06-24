@@ -1,0 +1,65 @@
+# here we store the info of the database
+# both the kline and the factor
+
+Binance:
+  host: rm-wz9908jq7f1q182hono.mysql.rds.aliyuncs.com
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: binance
+  port: 3306
+
+Crossover:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Crossover
+  port: 3306
+
+Okx:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Okx
+  port: 3306
+
+Factor_Binance_perp:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Factor_Binance_perp
+  port: 3306
+
+Factor_Binance_spot:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Factor_Binance_spot
+  port: 3306
+
+Factor_Okx_perp:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Factor_Okx_perp
+  port: 3306
+
+Factor_Okx_spot:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Factor_Okx_spot
+  port: 3306
+
+Factor_Crossover_spot:
+  host: localhost
+  user: wuxinke
+  password: Mzzsycywnybyl0
+  database: Factor_Crossover_spot
+  port: 3306
+
+instrument:
+  host: rm-j6cizq37o951zppqkbo.mysql.rds.aliyuncs.com
+  user: wuxinke
+  password: 7H0gACdfm5
+  database: bitcoin_rt
+  port: 3306
