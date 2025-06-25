@@ -1,4 +1,3 @@
-import asyncio
 import warnings
 
 from scipy.stats import boltzmann

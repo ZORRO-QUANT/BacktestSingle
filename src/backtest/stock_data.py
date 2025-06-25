@@ -139,7 +139,7 @@ class StockData:
                         )
 
                     else:
-                        raise ValueError
+                        raise ValueError("agg_method should be one of `MA` and `STD`")
 
         # rename the symbols, eventually all the symbols are in the format of `BTCUSDT`
         if (
