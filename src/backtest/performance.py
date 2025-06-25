@@ -11,6 +11,10 @@ config = configparser.ConfigParser()
 
 # Read the configuration file
 commission = load_config("backtest.yaml")["commission"]
+long_upper = load_config("backtest.yaml")["long"]["upper"]
+long_lower = load_config("backtest.yaml")["long"]["lower"]
+short_upper = load_config("backtest.yaml")["short"]["upper"]
+short_lower = load_config("backtest.yaml")["short"]["lower"]
 
 
 def rank_information_coefficient(
@@ -39,7 +43,7 @@ def rank_information_coefficient(
         raise ValueError("please provide the groups tensor")
 
     # Get the shape
-    num_dates, num_alphas, num_stocks = alphas.shape
+    _, num_alphas, _ = alphas.shape
     _, num_periods, _ = returns.shape
 
     # Expand the dimensions of alphas and returns for broadcasting
@@ -374,7 +378,6 @@ def long_short_backtest(
     metrics: torch.Tensor,
     backtest_periods: Tuple,
     groups: Optional[torch.Tensor] = None,
-    equal_weight=True,
     by_group: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
     """
@@ -384,7 +387,6 @@ def long_short_backtest(
                    tensor(alphas, periods, metrics) if not by_group
     :param backtest_periods: a tuple specifying the backtesting periods, it's a good idea just to use the backtest periods for ic computing
     :param groups: (dates, stocks)
-    :param equal_weight: bool: specify if we equal the weights or assign the weights according to the magnitudes of the alphas
     :param by_group: decide if we do the long short backtest by groups
     :return:
     """
@@ -437,7 +439,6 @@ def long_short_backtest(
                     mode=mode,
                     n_dates=n_dates,
                     backtest_period=backtest_period,
-                    equal_weight=equal_weight,
                 )  # (dates, alphas)
 
                 periods_return_lst.append(tensor_return)
@@ -517,7 +518,6 @@ def long_short_backtest(
                         mode=mode,
                         n_dates=n_dates,
                         backtest_period=backtest_period,
-                        equal_weight=equal_weight,
                     )  # (dates, alphas)
 
                     periods_return_lst.append(tensor_return)
@@ -571,7 +571,6 @@ def stratified_backtest(
                    tensor(alphas, periods, metrics) if not by_group
     :param backtest_periods: a tuple specifying the backtesting periods, it's a good idea just to use the backtest periods for ic computing
     :param groups: (dates, stocks)
-    :param equal_weight: bool: specify if we equal the weights or assign the weights according to the magnitudes of the alphas
     :param by_group: decide if we do the long short backtest by groups
     :return:
     """
@@ -751,7 +750,6 @@ def longshort_alpha_return(
     mode: BacktestModes,
     backtest_period: int,
     n_dates: int,
-    equal_weight=True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     :param alphas: (dates, alphas, stocks)
@@ -759,7 +757,6 @@ def longshort_alpha_return(
     :param metric: (alphas) the average ic over the specified periods for a certain alpha for a certain group which should be averaged outside this func
     :param mode: ['long', 'short', 'long_short']
     :param backtest_period: int
-    :param equal_weight: bool
     :return: the returns of each alpha on each day, the turnover of each alpha, averaged over the dates
     """
     # todo: add long and short
@@ -775,12 +772,18 @@ def longshort_alpha_return(
     alphas = alphas * ic_sign
     nan_mask = torch.isnan(alphas)
 
-    # Step 2: compute the weights according to `equal_weight`
-    if equal_weight:
-        alphas = alphas - torch.nanmedian(alphas, dim=-1, keepdim=True).values
-        alphas = torch.where(alphas >= 0, 1.0, -1.0)
-    else:
-        alphas = alphas - torch.nanmean(alphas, dim=-1, keepdim=True)
+    # Step 2: get the long / short mask respectively, and assign the weights
+    mask_long = (
+        alphas >= torch.nanquantile(alphas, q=long_lower, dim=-1, keepdim=True)
+    ) & (alphas <= torch.nanquantile(alphas, q=long_upper, dim=-1, keepdim=True))
+
+    mask_short = (
+        alphas >= torch.nanquantile(alphas, q=short_lower, dim=-1, keepdim=True)
+    ) & (alphas <= torch.nanquantile(alphas, q=short_upper, dim=-1, keepdim=True))
+
+    alphas = torch.zeros_like(alphas)  # Start with all zeros
+    alphas = torch.where(mask_long, 1, alphas)  # Set long positions to 1
+    alphas = torch.where(mask_short, -1, alphas)  # Set short positions to -1
 
     # Step 3: keep the nan mask
     alphas = torch.where(nan_mask, torch.nan, alphas)  # (dates, alphas, stocks)
@@ -876,7 +879,6 @@ def stratified_alpha_return(
     :param layer: the specific layer of the n_stratify here to backtest
     :param n_stratify: the total stratifications we wanna backtest
     :param backtest_period: int
-    :param equal_weight: bool
     :return: the returns of each alpha on each day, the turnover of each alpha, averaged over the dates
     """
 

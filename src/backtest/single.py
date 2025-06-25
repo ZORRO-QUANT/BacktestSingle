@@ -23,7 +23,6 @@ class SingleAnalyzer:
         groupby: GroupBy,
         alphas: List[Alpha],
         by_group: bool,
-        equal_weight: bool,
         symbols: Union[List, None] = None,
         sync: bool = False,
     ):
@@ -32,7 +31,6 @@ class SingleAnalyzer:
         self.symbols = symbols
         self.alphas = alphas
         self.by_group = by_group
-        self.equal_weight = equal_weight
         self.sync = sync
 
     async def get_nvs_metrics(
@@ -91,7 +89,6 @@ class SingleAnalyzer:
                 backtest_periods=backtest_periods,
                 groups=data.groups,
                 by_group=self.by_group,
-                equal_weight=self.equal_weight,
             )
 
             # ------------------------------------
