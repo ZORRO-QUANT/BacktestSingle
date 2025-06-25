@@ -120,8 +120,8 @@ class Liquidity3Group(IntEnum):
 class Amount4Group(IntEnum):
     SUPER_BIG = 0
     BIG = 1
-    MIDDLE = 2
-    SMALL = 3
+    SMALL = 2
+    SUPER_SMALL = 3
 
 
 class Metrics(IntEnum):
