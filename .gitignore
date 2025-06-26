@@ -155,8 +155,8 @@ Thumbs.db
 # Config files with sensitive data (but allow config.ini)
 *.ini
 !config.ini
-backtest.yaml
-path.yaml
+# backtest.yaml
+# path.yaml
 *.yml
 
 # Log files
@@ -182,6 +182,6 @@ secrets/
 keys/ 
 
 # Main execution files (personal configurations)
-src/main_category.py
-src/main_single.py
-src/main_orthogonalize.py
+# src/main_category.py
+# src/main_single.py
+# src/main_orthogonalize.py
