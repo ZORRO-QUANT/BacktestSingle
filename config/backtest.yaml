@@ -1,0 +1,9 @@
+commission: 0.0015
+
+long:
+  upper: 1.0
+  lower: 0.5
+
+short:
+  upper: 0.5
+  lower: 0.0
