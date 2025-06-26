@@ -32,7 +32,7 @@ class StockData:
         self._end_time = end_time
         self.groupby = groupby
         self.n_stratify = n_stratify
-        self.alphas = alphas
+        self.alpha_paths = alphas
         self.symbols = symbols
         self.data_sources = data_sources
         self.aggregations = aggregations
@@ -88,10 +88,10 @@ class StockData:
         )
 
         # Start with first file using pandas
-        df_alphas = pd.read_csv(self.alphas[0])
+        df_alphas = pd.read_csv(self.alpha_paths[0])
 
         # Sequentially outer merge remaining files horizontally using pandas
-        for alpha_file in self.alphas[1:]:
+        for alpha_file in self.alpha_paths[1:]:
             df_to_join = pd.read_csv(alpha_file)
             df_alphas = pd.merge(
                 df_alphas, df_to_join, on=["time", "symbol"], how="inner"
@@ -119,7 +119,7 @@ class StockData:
 
         # Calculate all requested aggregations
         for agg_method, windows in self.aggregations.items():
-            for alpha in self.alphas:
+            for alpha in self.alpha_paths:
                 for window in windows:
 
                     if agg_method == "STD":
@@ -287,7 +287,7 @@ class StockData:
             self.df_returns = self.df_returns[common_stocks]
             self.df_kline = self.df_kline[common_stocks]
 
-        logging.info(rf"formatting is done")
+        logging.info("formatting is done")
 
         return
 
