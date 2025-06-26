@@ -412,7 +412,6 @@ class StockData:
                     lambda x: x.replace("1000000", "")
                     .replace("1000", "")
                     .replace("1MBABYDOGE", "BABYDOGE")
-                    .replace("LUNA2", "LUNA")
                 )
             )
         elif (
@@ -487,7 +486,6 @@ class StockData:
                     lambda x: x.replace("1000000", "")
                     .replace("1000", "")
                     .replace("1MBABYDOGE", "BABYDOGE")
-                    .replace("LUNA2", "LUNA")
                 )
             )
         elif (
