@@ -15,6 +15,9 @@ path_general = Path(load_config("path.yaml")["general"])
 path_local_general = Path(load_config("path.yaml")["local_general"])
 windows_server = load_config("server.yaml")["windows_server"]
 
+path_alpha = Path(load_config("path.yaml")["general_alpha"])
+path_backtest = Path(load_config("path.yaml")["general_backtest"])
+
 
 class SingleAnalyzer:
     def __init__(
@@ -47,12 +50,7 @@ class SingleAnalyzer:
         # make the data
         for alpha in self.alphas:
 
-            alphas = [
-                path_general
-                / data_sources.factor.exchange.name
-                / data_sources.factor.universe.name
-                / alpha.path
-            ]
+            alphas = [path_alpha / alpha.path]
 
             data = StockData(
                 start_time=start,
@@ -163,7 +161,7 @@ class SingleAnalyzer:
     async def save_alpha(
         self,
         data: StockData,
-        category: Category,
+        category: str,
         df_longshort_returns: pd.DataFrame,
         df_longshort_nvs: pd.DataFrame,
         df_stratify_nvs: pd.DataFrame,
@@ -223,23 +221,9 @@ class SingleAnalyzer:
 
             # ------------------------------------
             # find the correct path, it should be results / groupby / kline_info / category
-            remote_dir = (
-                path_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category.name
-            )
+            remote_dir = path_backtest / category
 
-            local_dir = (
-                path_local_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category.name
-            )
+            local_dir = path_local_general / category
 
             if not remote_dir.exists():
                 remote_dir.mkdir(parents=True, exist_ok=True)

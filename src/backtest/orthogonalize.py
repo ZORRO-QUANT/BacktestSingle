@@ -1,6 +1,4 @@
-import asyncio
 import datetime
-from json import load
 import logging
 import warnings
 from pathlib import Path
@@ -27,11 +25,14 @@ path_general = Path(load_config("path.yaml")["general"])
 path_local_general = Path(load_config("path.yaml")["local_general"])
 windows_server = load_config("server.yaml")["windows_server"]
 
+path_alpha = Path(load_config("path.yaml")["general_alpha"])
+path_backtest = Path(load_config("path.yaml")["general_backtest"])
+
 base_alphas = [
-    Alpha(category=Category.liquidity_1d, alpha="liq_amount", freq="1d"),
-    Alpha(category=Category.liquidity_1d, alpha="liq_trade", freq="1d"),
-    Alpha(category=Category.liquidity_1h, alpha="liq_regress_24", freq="1h"),
-    Alpha(category=Category.volatility_1d, alpha="vol_residual_20", freq="1d"),
+    Alpha(category="liquidity_1d", alpha="liq_amount", freq="1d"),
+    Alpha(category="liquidity_1d", alpha="liq_trade", freq="1d"),
+    Alpha(category="liquidity_1h", alpha="liq_regress_24", freq="1h"),
+    Alpha(category="volatility_1d", alpha="vol_residual_20", freq="1d"),
 ]
 
 
@@ -40,7 +41,7 @@ class OrthogonalAnalyzer:
         self,
         start: datetime.datetime,
         end: datetime.datetime,
-        categories: List[Category],
+        categories: List[str],
         groupby: GroupBy,
         chunk_size: int,
         backtest_periods: Tuple,
@@ -63,14 +64,7 @@ class OrthogonalAnalyzer:
 
         for category_ in self.categories:
 
-            path = (
-                path_general
-                / data_sources.factor.exchange.name
-                / data_sources.factor.universe.name
-                / "Alphas"
-                / data_sources.factor.freq
-                / category_.name
-            )
+            path = path_alpha / category_
 
             alphas = list(path.glob("*.csv"))
 
@@ -81,23 +75,9 @@ class OrthogonalAnalyzer:
             # ------------------------------------
             # find the correct path, it should be results / groupby / kline_info / category
 
-            path_remote = (
-                path_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category_.name
-            )
+            path_remote = path_backtest / category_
 
-            path_local = (
-                path_local_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category_.name
-            )
+            path_local = path_local_general / category_
 
             if not path_remote.exists():
                 path_remote.mkdir(parents=True, exist_ok=True)
@@ -105,7 +85,7 @@ class OrthogonalAnalyzer:
             # ------------------------------------
             # for the rankic, directly save
             save_to_excel(
-                path=path_remote / f"summary_orthogonalize_{category_.name}.xlsx",
+                path=path_remote / f"summary_orthogonalize_{category_}.xlsx",
                 df=df_rankic_metrics,
                 sheet_name="rankic_metrics",
                 index=False,
@@ -114,7 +94,7 @@ class OrthogonalAnalyzer:
             # ------------------------------------
             # for the ic, directly save
             save_to_excel(
-                path=path_remote / f"summary_orthogonalize_{category_.name}.xlsx",
+                path=path_remote / f"summary_orthogonalize_{category_}.xlsx",
                 df=df_ic_metrics,
                 sheet_name="ic_metrics",
                 index=False,
@@ -124,10 +104,8 @@ class OrthogonalAnalyzer:
             # sync if needed
             if self.sync:
                 send_file_to_windows(
-                    remote_path=path_remote
-                    / f"summary_orthogonalize_{category_.name}.xlsx",
-                    local_path=path_local
-                    / f"summary_orthogonalize_{category_.name}.xlsx",
+                    remote_path=path_remote / f"summary_orthogonalize_{category_}.xlsx",
+                    local_path=path_local / f"summary_orthogonalize_{category_}.xlsx",
                     windows_username=windows_server["username"],
                     windows_ip=windows_server["ip"],
                     windows_password=windows_server["password"],
@@ -164,6 +142,8 @@ class OrthogonalAnalyzer:
                 path_general
                 / data_sources.factor.exchange.name
                 / data_sources.factor.universe.name
+                / "Alphas"
+                / alpha.freq
                 / alpha.path
                 for alpha in base_alphas
             ]
@@ -316,91 +296,3 @@ class OrthogonalAnalyzer:
             orthogonalized_alphas[date_idx] = residuals_full.T  # (num_alphas, stocks)
 
         return orthogonalized_alphas
-
-    def get_summary(self, data_sources: DataSources):
-        # --------------------------------------------
-        # Loop 1: Loop over each category
-
-        dfs_categories = []
-        for category in self.categories:
-
-            # --------------------------------------------
-            # log the computing step
-            logging.info(rf"-> now computing {category.name}")
-
-            # --------------------------------------------
-            # extract the frequency
-            path_summary = (
-                path_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / "K_24H_UTC0"
-                / f"summary_{category.name}.xlsx"
-            )
-
-            if path_summary.exists():
-                df_summary = pd.read_excel(
-                    path_summary, sheet_name="ic_metrics", engine="openpyxl"
-                )
-
-                # --------------------------------------------
-                # only keep the ic mean / positive_ratio / do the aggregation / do the renaming / add the category column
-                df_summary = df_summary.loc[
-                    (
-                        df_summary["metrics"].isin(
-                            ["MEAN", "POSITIVE_RATIO", "RISK_ADJUSTED_IC"]
-                        )
-                    )
-                    & (df_summary["period"] == "7D")
-                ]
-                df_summary.drop(columns=["period"], inplace=True)
-
-                # --------------------------------------------
-                # add the category name
-                df_summary["category"] = category.name
-                df_summary = df_summary[
-                    ["group", "category", "alpha", "metrics", "value"]
-                ]
-            else:
-                continue
-
-            # --------------------------------------------
-            # append all the dfs
-            dfs_categories.append(df_summary)
-
-        # --------------------------------------------
-        # concatenate all the summary dfs
-        df_categories = pd.concat(dfs_categories, ignore_index=True)
-        df_categories = df_categories.round(3)
-
-        remote_save_path = (
-            path_general
-            / data_sources.kline.exchange.name
-            / data_sources.kline.universe.name
-            / "Backtest"
-            / self.groupby.name
-            / f"summary_alphas_statistics.xlsx"
-        )
-
-        local_save_path = (
-            path_general
-            / data_sources.kline.exchange.name
-            / data_sources.kline.universe.name
-            / "Backtest"
-            / self.groupby.name
-            / f"summary_alphas_statistics.xlsx"
-        )
-
-        save_to_excel(remote_save_path, df_categories, sheet_name="ic_summery")
-
-        # --------------------------------------------
-        # send the file from remote to local
-        send_file_to_windows(
-            remote_path=remote_save_path,
-            local_path=local_save_path,
-            windows_username=windows_server["username"],
-            windows_ip=windows_server["ip"],
-            windows_password=windows_server["password"],
-        )

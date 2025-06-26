@@ -1,10 +1,8 @@
-import asyncio
 import datetime
-from json import load
 import logging
 import warnings
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import pandas as pd
 
@@ -24,13 +22,16 @@ path_general = Path(load_config("path.yaml")["general"])
 path_local_general = Path(load_config("path.yaml")["local_general"])
 windows_server = load_config("server.yaml")["windows_server"]
 
+path_alpha = Path(load_config("path.yaml")["general_alpha"])
+path_backtest = Path(load_config("path.yaml")["general_backtest"])
+
 
 class CategoryAnalyzer:
     def __init__(
         self,
         start: datetime.datetime,
         end: datetime.datetime,
-        categories: List[Category],
+        categories: List[str],
         groupby: GroupBy,
         chunk_size: int,
         backtest_periods: Tuple,
@@ -53,14 +54,7 @@ class CategoryAnalyzer:
 
         for category_ in self.categories:
 
-            path = (
-                path_general
-                / data_sources.factor.exchange.name
-                / data_sources.factor.universe.name
-                / "Alphas"
-                / data_sources.factor.freq
-                / category_.name
-            )
+            path = path_alpha / category_
 
             alphas = list(path.glob("*.csv"))
 
@@ -71,23 +65,9 @@ class CategoryAnalyzer:
             # ------------------------------------
             # find the correct path, it should be results / groupby / kline_info / category
 
-            path_remote = (
-                path_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category_.name
-            )
+            path_remote = path_backtest / category_
 
-            path_local = (
-                path_local_general
-                / data_sources.kline.exchange.name
-                / data_sources.kline.universe.name
-                / "Backtest"
-                / self.groupby.name
-                / category_.name
-            )
+            path_local = path_local_general / category_
 
             if not path_remote.exists():
                 path_remote.mkdir(parents=True, exist_ok=True)
@@ -95,7 +75,7 @@ class CategoryAnalyzer:
             # ------------------------------------
             # for the rankic, directly save
             save_to_excel(
-                path=path_remote / f"summary_{category_.name}.xlsx",
+                path=path_remote / f"summary_{category_}.xlsx",
                 df=df_rankic_metrics,
                 sheet_name="rankic_metrics",
                 index=False,
@@ -104,7 +84,7 @@ class CategoryAnalyzer:
             # ------------------------------------
             # for the ic, directly save
             save_to_excel(
-                path=path_remote / f"summary_{category_.name}.xlsx",
+                path=path_remote / f"summary_{category_}.xlsx",
                 df=df_ic_metrics,
                 sheet_name="ic_metrics",
                 index=False,
@@ -114,8 +94,8 @@ class CategoryAnalyzer:
             # sync if needed
             if self.sync:
                 send_file_to_windows(
-                    remote_path=path_remote / f"summary_{category_.name}.xlsx",
-                    local_path=path_local / f"summary_{category_.name}.xlsx",
+                    remote_path=path_remote / f"summary_{category_}.xlsx",
+                    local_path=path_local / f"summary_{category_}.xlsx",
                     windows_username=windows_server["username"],
                     windows_ip=windows_server["ip"],
                     windows_password=windows_server["password"],
@@ -286,50 +266,3 @@ class CategoryAnalyzer:
             windows_ip=windows_server["ip"],
             windows_password=windows_server["password"],
         )
-
-
-if __name__ == "__main__":
-    # ------------------------------------
-    # here we specify the start and end of the klines, NOT the alphas
-    start = datetime.datetime(2023, 1, 1, 8, 0, 0)
-    end = datetime.datetime(2025, 6, 14, 8, 0, 0)
-
-    # ------------------------------------
-    # state all the kline infos we want compute
-    symbols = None
-
-    groupby = GroupBy.amount_quarter_spot_3
-    chunk_size = 5
-    backtest_periods = (1, 3, 5, 7, 11, 13, 15)
-    by_group = True
-
-    # aggregations = {"STD": [6, 12, 24, 48], "MA": [6, 12, 24, 48]}
-    # aggregations = {"STD": [5, 10, 15, 20], "MA": [3, 4, 5, 6, 10, 15, 20, 25, 30]}
-    aggregations = {}
-
-    # ------------------------------------
-    # state all the alpha categories we want to compute
-    categories = [
-        Category.liquidity_1d,
-    ]
-
-    data_sources = DataSources(
-        factor=DataSource(exchange=Exchange.Binance, universe=Universe.spot, freq="1d"),
-        kline=DataSource(exchange=Exchange.Binance, universe=Universe.spot, freq="1d"),
-        group=DataSource(exchange=Exchange.Binance, universe=Universe.spot, freq="1d"),
-    )
-
-    categoryAnalyzer = CategoryAnalyzer(
-        start=start,
-        end=end,
-        symbols=symbols,
-        categories=categories,
-        groupby=groupby,
-        chunk_size=chunk_size,
-        by_group=by_group,
-        backtest_periods=backtest_periods,
-    )
-
-    asyncio.run(
-        categoryAnalyzer.compute(data_sources=data_sources, aggregations=aggregations)
-    )

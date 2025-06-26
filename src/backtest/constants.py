@@ -83,14 +83,14 @@ class Evaluation(IntEnum):
 
 @dataclass
 class Alpha:
-    category: "Category"
+    category: str
     alpha: List[str]
     aggregations: dict = field(default_factory=dict)
     freq: Optional[Literal["1h", "1d"]] = "1d"
 
     @property
     def path(self) -> Path:
-        return Path(f"Alphas/{self.freq}/{self.category.name}/{self.alpha}.csv")
+        return Path(f"{self.category}/{self.alpha}.csv")
 
 
 class GroupBy(IntEnum):
