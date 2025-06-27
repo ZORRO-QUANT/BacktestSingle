@@ -94,7 +94,7 @@ class StockData:
         for alpha_file in self.alpha_paths[1:]:
             df_to_join = pd.read_csv(alpha_file)
             df_alphas = pd.merge(
-                df_alphas, df_to_join, on=["time", "symbol"], how="inner"
+                df_alphas, df_to_join, on=["time", "symbol"], how="outer"
             )
 
         # Convert the final merged pandas DataFrame to polars DataFrame

@@ -144,10 +144,10 @@ def get_empty_df(
     """
     open_list = pd.date_range(start=start, end=end, freq=frequency, inclusive=inclusive)
 
-    df_empty = pd.DataFrame({"openTime": open_list})
-    df_empty["openTime"] = pd.to_datetime(df_empty["openTime"])
+    df_empty = pd.DataFrame({"time": open_list})
+    df_empty["time"] = pd.to_datetime(df_empty["time"])
     df_empty["closeTime"] = (
-        df_empty["openTime"] + pd.Timedelta(frequency) - pd.Timedelta(seconds=1)
+        df_empty["time"] + pd.Timedelta(frequency) - pd.Timedelta(seconds=1)
     )
 
     return df_empty
@@ -357,7 +357,7 @@ def compute_forward_returns(
     df = pd.DataFrame.from_dict(raw_values_dict)
     df.set_index(
         pd.MultiIndex.from_product(
-            [factor_dateindex, prices.columns], names=["openTime", "symbol"]
+            [factor_dateindex, prices.columns], names=["time", "symbol"]
         ),
         inplace=True,
     )
@@ -366,7 +366,7 @@ def compute_forward_returns(
     df = df[column_list]
 
     # df.index.levels[0].freq = freq
-    df.index.set_names(["openTime", "symbol"], inplace=True)
+    df.index.set_names(["time", "symbol"], inplace=True)
 
     return df
 
