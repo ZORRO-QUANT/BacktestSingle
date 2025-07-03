@@ -75,6 +75,7 @@ class Benchmark(IntEnum):
 class Evaluation(IntEnum):
     ics = auto()
     ic_metrics = auto()
+    ret_metrics = auto()
     nvs = auto()
     returns = auto()
     drawdowns = auto()
@@ -124,7 +125,7 @@ class Amount4Group(IntEnum):
     SUPER_SMALL = 3
 
 
-class Metrics(IntEnum):
+class Metrics_IC(IntEnum):
     MEAN = 0
     POSITIVE_RATIO = 1
     STD = 2
@@ -133,6 +134,16 @@ class Metrics(IntEnum):
     P_VALUE = 5
     SKEW = 6
     KURTOSIS = 7
+
+
+class Metrics_Stratify(IntEnum):
+    MEAN = 0
+    WIN_RATE = 1
+    STD = 2
+    RISK_ADJUSTED_MEAN = 3
+    T_STATS = 4
+    P_VALUE = 5
+    TURNOVER = 6
 
 
 class BacktestModes(IntEnum):

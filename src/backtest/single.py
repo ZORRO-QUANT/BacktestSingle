@@ -92,7 +92,7 @@ class SingleAnalyzer:
 
             # ------------------------------------
             # get the stratified returns
-            stratified_returns_tensor, _ = stratified_backtest(
+            stratified_returns_tensor, stratified_turnover_tensor = stratified_backtest(
                 alphas=data.alphas,
                 returns=data.returns,
                 metrics=metrics_tensor,
@@ -108,13 +108,15 @@ class SingleAnalyzer:
             dd_longshort_tensor = return2drawdown(returns_tensor)
             cumic_longshort_tensor = ic2cumsum(ic_tensor)
 
-            nvs_stratify_tensor = return2netvalue(stratified_returns_tensor)
+            stratify_metrics = stratification_stats(
+                stratified_returns_tensor, stratified_turnover_tensor
+            )
 
             # ------------------------------------
             # get the stratified dfs
-            df_stratify_nvs = data.make_dataframe_stratification(
-                data=nvs_stratify_tensor,
-                evaluation=Evaluation.nvs,
+            df_stratify_metrics = data.make_dataframe_stratification(
+                data=stratify_metrics,
+                evaluation=Evaluation.ret_metrics,
                 by_group=self.by_group,
             )
 
@@ -150,7 +152,7 @@ class SingleAnalyzer:
                 data=data,
                 category=alpha.category,
                 df_longshort_nvs=df_longshort_nvs,
-                df_stratify_nvs=df_stratify_nvs,
+                df_stratify_metrics=df_stratify_metrics,
                 df_cumics=df_cumics,
                 benchmark=benchmark,
                 df_longshort_returns=df_longshort_returns,
@@ -166,7 +168,7 @@ class SingleAnalyzer:
         category: Category,
         df_longshort_returns: pd.DataFrame,
         df_longshort_nvs: pd.DataFrame,
-        df_stratify_nvs: pd.DataFrame,
+        df_stratify_metrics: pd.DataFrame,
         df_cumics: pd.DataFrame,
         df_longshort_turnover: pd.DataFrame,
         df_longshort_drawdowns: pd.DataFrame,
@@ -320,10 +322,10 @@ class SingleAnalyzer:
             ].copy()
             df_longshort_nv.drop(columns=["alpha"], inplace=True)
 
-            df_stratify_nv = df_stratify_nvs.loc[
-                df_stratify_nvs["alpha"] == _alpha_name
+            df_stratify_metric = df_stratify_metrics.loc[
+                df_stratify_metrics["alpha"] == _alpha_name
             ].copy()
-            df_stratify_nv.drop(columns=["alpha"], inplace=True)
+            df_stratify_metric.drop(columns=["alpha"], inplace=True)
 
             df_cumic = df_cumics.loc[df_cumics["alpha"] == _alpha_name].copy()
             df_cumic.drop(columns=["alpha"], inplace=True)
@@ -353,8 +355,8 @@ class SingleAnalyzer:
 
                 save_to_excel(
                     path=remote_dir / rf"{_alpha_name}.xlsx",
-                    df=df_stratify_nv,
-                    sheet_name="StratifyNV",
+                    df=df_stratify_metric,
+                    sheet_name="StratifyMetrics",
                     index=False,
                 )
 

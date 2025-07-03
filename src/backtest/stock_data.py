@@ -276,6 +276,12 @@ class StockData:
                 self.df_returns.columns
             ).intersection(self.df_group.columns)
             common_stocks = sorted(common_stocks)
+
+            # put `BTCUSDT` as the first one
+            if "BTCUSDT" in common_stocks:
+                common_stocks.remove("BTCUSDT")
+                common_stocks.insert(0, "BTCUSDT")
+
             self.df_alphas = self.df_alphas[common_stocks]
             self.df_returns = self.df_returns[common_stocks]
             self.df_group = self.df_group[common_stocks]
@@ -557,8 +563,6 @@ class StockData:
             return list(Amount4Group.__members__.keys())
         elif self.groupby.name.startswith("amount") and self.groupby.name.endswith("3"):
             return list(Amount3Group.__members__.keys())
-        elif self.groupby.name.startswith("test") and self.groupby.name.endswith("3"):
-            return list(Amount2Group.__members__.keys())
         elif self.groupby.name.startswith("liquidity") and self.groupby.name.endswith(
             "3"
         ):
@@ -567,8 +571,12 @@ class StockData:
             raise ValueError("under developing")
 
     @property
-    def metrics(self) -> List[str]:
-        return list(Metrics.__members__.keys())
+    def metrics_ic(self) -> List[str]:
+        return list(Metrics_IC.__members__.keys())
+
+    @property
+    def metrics_stratify(self) -> List[str]:
+        return list(Metrics_Stratify.__members__.keys())
 
     @property
     def BacktestModes(self) -> List[str]:
@@ -598,7 +606,12 @@ class StockData:
                 n_groups, n_alphas, n_periods, n_metrics, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
-                    [self.groups_names, self._alpha_names, self.periods, self.metrics]
+                    [
+                        self.groups_names,
+                        self._alpha_names,
+                        self.periods,
+                        self.metrics_ic,
+                    ]
                 )
                 data = data.reshape(-1, 1)
 
@@ -622,7 +635,7 @@ class StockData:
                 n_alphas, n_periods, n_metrics, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
-                    [self._alpha_names, self.periods, self.metrics]
+                    [self._alpha_names, self.periods, self.metrics_ic]
                 )
                 data = data.reshape(-1, 1)
 
@@ -841,10 +854,10 @@ class StockData:
 
                 return df
 
-        elif evaluation == Evaluation.turnover:
+        elif evaluation == Evaluation.ret_metrics:
 
             if by_group:
-                n_alphas, n_groups, n_modes, n_periods, _ = data.shape
+                n_alphas, n_groups, n_layers, n_periods, n_metrics, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
                     [
@@ -852,6 +865,7 @@ class StockData:
                         self.groups_names,
                         self.layers,
                         self.periods,
+                        self.metrics_stratify,
                     ]
                 )
                 data = data.reshape(-1, 1)
@@ -864,6 +878,7 @@ class StockData:
                         "level_1": "group",
                         "level_2": "layer",
                         "level_3": "period",
+                        "level_4": "metrics",
                     },
                     inplace=True,
                 )
@@ -873,10 +888,15 @@ class StockData:
                 return df
 
             else:
-                n_alphas, n_modes, n_periods, _ = data.shape
+                n_alphas, n_layers, n_periods, n_metrics, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
-                    [self._alpha_names, self.layers, self.periods]
+                    [
+                        self._alpha_names,
+                        self.layers,
+                        self.periods,
+                        self.metrics_stratify,
+                    ]
                 )
                 data = data.reshape(-1, 1)
 
@@ -884,9 +904,14 @@ class StockData:
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
                 df.rename(
-                    columns={"level_1": "layer", "level_2": "period"}, inplace=True
+                    columns={
+                        "level_1": "layer",
+                        "level_2": "period",
+                        "level_3": "metrics",
+                    },
+                    inplace=True,
                 )
 
-                logging.info(rf"-> {evaluation.name} has been generated")
+                logging.info(rf"-> stratify {evaluation.name} has been generated")
 
                 return df

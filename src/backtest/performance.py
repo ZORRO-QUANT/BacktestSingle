@@ -372,6 +372,58 @@ def information_coefficient_stats(ics: torch.Tensor) -> torch.Tensor:
     return metrics.unsqueeze(dim=-1)
 
 
+def stratification_stats(return_: torch.Tensor, turnover: torch.Tensor) -> torch.Tensor:
+    """
+    compute the statistics of the stratified returns
+
+    :param return_: tensor(dates, alphas, groups, layers, periods, 1) if by_group
+                    tensor(dates, alphas, layers, periods, 1) if not by_group
+           turnover: tensor(alphas, groups, layers, periods, 1) if by_group
+                     tensor(alphas, layers, periods, 1) if not by_group
+
+    :return: tensor(alphas, groups, layers, periods, metrics, 1) if by_group
+             tensor(alphas, layers, periods, 1) if not by_group
+    """
+
+    # ------------------------------------
+    # squeeze the last dim
+    return_ = return_.squeeze(dim=-1)
+    turnover = turnover.squeeze(dim=-1)
+
+    # ------------------------------------
+    # compute the mean
+    ret_mean = return_.nanmean(dim=0)
+
+    # ------------------------------------
+    # compute the positive ratios
+    positive_count = torch.sum(return_ > 0, dim=0)
+    total_count = return_.size(0)
+    win_rate = positive_count / total_count
+
+    # ------------------------------------
+    # compute the std
+    ret_std = nanstd(return_, dim=0)
+
+    # ------------------------------------
+    # compute the Risk Adjusted IC
+    ret_adjusted = ret_mean / ret_std
+
+    # ------------------------------------
+    # compute the t-stats and p-values
+    t_stat, p_value = t_test_pytorch(return_, dim=0)
+
+    # ------------------------------------
+    # stack them all on the last dim
+    ret_metrics = torch.stack(
+        [ret_mean, win_rate, ret_std, ret_adjusted, t_stat, p_value, turnover],
+        dim=-1,
+    )
+
+    return ret_metrics.unsqueeze(dim=-1)
+    # if by_group: (alphas, groups, layers, periods, n_metrics, 1)
+    # else: (alphas, layers, periods, n_metrics, 1)
+
+
 def long_short_backtest(
     alphas: torch.Tensor,
     returns: torch.Tensor,
@@ -644,14 +696,10 @@ def stratified_backtest(
             stratify_turnover_lst, dim=1
         )  # (alphas, layers, periods)
 
-        shifted_returns = torch.empty_like(tensor_layers_periods_return)
-        shifted_returns[0, :, :, :] = 0.0
-        shifted_returns[1:, :, :, :] = tensor_layers_periods_return[:-1, :, :, :]
-
-        return shifted_returns.unsqueeze(
+        return tensor_layers_periods_return.unsqueeze(
             dim=-1
         ), tensor_layers_periods_turnover.unsqueeze(dim=-1)
-        # (dates, alphas, layers, periods, 1), (alphas, alyers, periods, 1)
+        # (dates, alphas, layers, periods, 1), (alphas, layers, periods, 1)
 
     else:
 
@@ -731,12 +779,8 @@ def stratified_backtest(
         tensor_groups_layers_turnover = torch.stack(
             groups_turnover_lst, dim=1
         )  # (alphas, groups, modes, periods)
-        shifted_returns = torch.empty_like(tensor_groups_layers_periods)
 
-        shifted_returns[0, :, :, :] = 0.0
-        shifted_returns[1:, :, :, :] = tensor_groups_layers_periods[:-1, :, :, :]
-
-        return shifted_returns.unsqueeze(
+        return tensor_groups_layers_periods.unsqueeze(
             dim=-1
         ), tensor_groups_layers_turnover.unsqueeze(dim=-1)
 
@@ -871,6 +915,7 @@ def stratified_alpha_return(
     n_stratify: int,
     backtest_period: int,
     n_dates: int,
+    mask_group: Union[torch.Tensor, None] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     :param alphas: (dates, alphas, stocks)
@@ -882,16 +927,24 @@ def stratified_alpha_return(
     :return: the returns of each alpha on each day, the turnover of each alpha, averaged over the dates
     """
 
-    # Step 0: compute the market ret, clip the return_ at the 3% and 97% percentile
+    # Step 0: compute the market ret, clip the return_ at the 5% and 95% percentile
     # Compute quantiles for clipping
-    lower_bound = torch.nanquantile(return_, 0.03, dim=-1, keepdim=True)
-    upper_bound = torch.nanquantile(return_, 0.97, dim=-1, keepdim=True)
+    lower_bound = torch.nanquantile(return_, 0.05, dim=-1, keepdim=True)
+    upper_bound = torch.nanquantile(return_, 0.95, dim=-1, keepdim=True)
 
-    # Clip using torch.where since torch.clamp doesn't work with different bounds per row
+    # Clip using torch.where
     return_mkt = torch.where(return_ < lower_bound, lower_bound, return_)
     return_mkt = torch.where(return_mkt > upper_bound, upper_bound, return_mkt)
 
-    return_mkt = return_mkt.nanmean(dim=-1)  # (dates, 1)
+    return_mkt = return_mkt.nanmean(dim=-1)  # (dates, alphas)
+
+    # deselect the corresponding alphas and returns according to the mask_group
+    if mask_group is not None:
+        alphas = torch.where(mask_group, alphas, torch.nan)
+        return_ = torch.where(mask_group, return_, torch.nan)
+        metric = torch.where(mask_group, metric, torch.nan)
+    else:
+        pass
 
     # Step 1: change the sign of the alphas according to the sign of ics
     ic_sign = torch.sign(metric)
