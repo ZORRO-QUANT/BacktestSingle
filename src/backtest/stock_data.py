@@ -548,8 +548,10 @@ class StockData:
 
     @property
     def periods(self) -> List[str]:
+        freq = self.data_sources.kline.freq[-1].upper()
+
         periods = list(self.backtest_periods)
-        periods = [rf"{period}D" for period in periods]
+        periods = [rf"{period}{freq}" for period in periods]
         return periods
 
     @property
