@@ -85,7 +85,7 @@ class Evaluation(IntEnum):
 @dataclass
 class Alpha:
     category: "Category"
-    alpha: List[str]
+    alpha: str
     aggregations: dict = field(default_factory=dict)
     freq: Optional[Literal["1h", "1d"]] = "1d"
 
