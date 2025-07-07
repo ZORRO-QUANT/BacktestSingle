@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import List, Literal, Optional
+from typing import Literal, Optional
 from pathlib import Path
 
 

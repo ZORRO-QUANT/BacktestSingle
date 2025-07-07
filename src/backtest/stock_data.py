@@ -17,7 +17,7 @@ class StockData:
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         groupby: GroupBy,
-        alphas: List[Path],
+        alpha_paths: List[Path],
         data_sources: DataSources,
         n_stratify: int = 5,
         aggregations: dict = dict(),
@@ -32,7 +32,7 @@ class StockData:
         self._end_time = end_time
         self.groupby = groupby
         self.n_stratify = n_stratify
-        self.alpha_paths = alphas
+        self.alpha_paths = alpha_paths
         self.symbols = symbols
         self.data_sources = data_sources
         self.aggregations = aggregations
