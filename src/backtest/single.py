@@ -47,7 +47,7 @@ class SingleAnalyzer:
         # make the data
         for alpha in self.alphas:
 
-            alphas = [
+            alpha_paths = [
                 path_general
                 / data_sources.factor.exchange.name
                 / data_sources.factor.universe.name
@@ -59,7 +59,7 @@ class SingleAnalyzer:
                 end_time=end,
                 groupby=self.groupby,
                 n_stratify=n_stratify,
-                alphas=alphas,
+                alpha_paths=alpha_paths,
                 aggregations=alpha.aggregations,
                 symbols=self.symbols,
                 backtest_periods=backtest_periods,

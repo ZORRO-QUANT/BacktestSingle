@@ -1,10 +1,8 @@
-import asyncio
 import datetime
-from json import load
 import logging
 import warnings
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 import torch
 
@@ -153,7 +151,7 @@ class OrthogonalAnalyzer:
                 start_time=self.start,
                 end_time=self.end,
                 groupby=self.groupby,
-                alphas=alphas_,
+                alpha_paths=alphas_,
                 aggregations=aggregations,
                 symbols=self.symbols,
                 backtest_periods=self.backtest_periods,

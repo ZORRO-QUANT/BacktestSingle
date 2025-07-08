@@ -4,7 +4,7 @@ from json import load
 import logging
 import warnings
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 import pandas as pd
 
@@ -62,10 +62,10 @@ class CategoryAnalyzer:
                 / category_.name
             )
 
-            alphas = list(path.glob("*.csv"))
+            alpha_paths = list(path.glob("*.csv"))
 
             df_rankic_metrics, df_ic_metrics = self._compute(
-                alphas, data_sources, aggregations
+                alpha_paths, data_sources, aggregations
             )
 
             # ------------------------------------
@@ -123,14 +123,14 @@ class CategoryAnalyzer:
 
     def _compute(
         self,
-        alphas: Union[List[str], List[Path]],
+        alpha_paths: Union[List[str], List[Path]],
         data_sources: DataSources,
         aggregations: dict = dict(),
     ):
 
         # ------------------------------------
         # split the alpha paths into chunks to avoid overloading
-        alphas_batch = sublist(alphas, chunk_size=self.chunk_size)
+        alphas_batch = sublist(alpha_paths, chunk_size=self.chunk_size)
 
         rankic_metrics_dfs = []
         ic_metrics_dfs = []
@@ -140,7 +140,7 @@ class CategoryAnalyzer:
                 start_time=self.start,
                 end_time=self.end,
                 groupby=self.groupby,
-                alphas=alphas_,
+                alpha_paths=alphas_,
                 aggregations=aggregations,
                 symbols=self.symbols,
                 backtest_periods=self.backtest_periods,
