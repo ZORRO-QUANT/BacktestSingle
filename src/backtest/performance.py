@@ -6,9 +6,6 @@ import torch
 from .constants import BacktestModes
 from .utils import *
 
-# Create a ConfigParser object
-config = configparser.ConfigParser()
-
 # Read the configuration file
 commission = load_config("backtest.yaml")["commission"]
 long_upper = load_config("backtest.yaml")["long"]["upper"]
@@ -462,7 +459,6 @@ def long_short_backtest(
     if not by_group:
         metric = metrics[:, :, 0]  # (alphas, periods)
         metric = metric.nanmean(dim=-1)  # (alphas)
-
     else:
         metric = metrics[:, :, :, 0]  # (groups, alphas, periods)
         metric = metric.nanmean(dim=-1)  # (groups, alphas)
@@ -477,9 +473,8 @@ def long_short_backtest(
         )  # (dates, alphas, stocks)
 
         # step 2: loop over the modes
-        # todo: now only do the long short
+        # todo: long and short should be excess return to make sense
         for mode in [BacktestModes.LONG, BacktestModes.SHORT, BacktestModes.LONG_SHORT]:
-            # for mode in [BacktestModes.LONG_SHORT]:
             # step 3: loop over the periods
             periods_return_lst = []
             periods_turnover_lst = []
@@ -729,11 +724,6 @@ def stratified_backtest(
             # create a mask where groups matches the current unique group
             mask = groups == group
 
-            # deselect the corresponding alphas and returns
-            alphas_group = torch.where(mask, alphas, torch.nan)
-            returns_group = torch.where(mask, returns, torch.nan)
-            metric_group = torch.where(mask, metric_group, torch.nan)
-
             # step 3: loop over the layers
             # todo: now only do the long short
             for layer in range(n_stratify):
@@ -742,13 +732,14 @@ def stratified_backtest(
                 periods_turnover_lst = []
                 for backtest_period in backtest_periods:
                     tensor_return, tensor_turnover = stratified_alpha_return(
-                        alphas=alphas_group,
-                        return_=returns_group,
+                        alphas=alphas,
+                        return_=returns,
                         metric=metric_group,
                         layer=layer,
                         n_stratify=n_stratify,
                         n_dates=n_dates,
                         backtest_period=backtest_period,
+                        mask_group=mask,
                     )  # (dates, alphas)
 
                     periods_return_lst.append(tensor_return)
