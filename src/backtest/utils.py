@@ -336,7 +336,7 @@ def compute_forward_returns(
 
     for period in sorted(periods):
         if cumulative_returns:
-            returns = prices.pct_change(period)
+            returns = prices.pct_change(period, fill_method=None)
         else:
             returns = prices.pct_change()
 
