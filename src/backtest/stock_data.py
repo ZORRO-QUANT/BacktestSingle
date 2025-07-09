@@ -454,9 +454,15 @@ class StockData:
         """
         exchange = self.data_sources.group.exchange.name
         universe = self.data_sources.group.universe.name
+        freq = self.data_sources.group.freq
 
         path_group = (
-            path_general / exchange / universe / "Groups" / f"{self.groupby.name}.csv"
+            path_general
+            / exchange
+            / universe
+            / "Groups"
+            / freq
+            / f"{self.groupby.name}.csv"
         )
 
         df_group = pl.scan_csv(path_group).collect()

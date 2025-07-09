@@ -1,7 +1,5 @@
 import warnings
 
-from scipy.stats import boltzmann
-
 import quantstats as qs
 from database import Reader
 from .performance import *
@@ -38,7 +36,7 @@ class SingleAnalyzer:
         end: datetime.datetime,
         backtest_periods: Tuple,
         data_sources: DataSources,
-        benchmark: Benchmark = Benchmark.btc,
+        benchmark: Benchmark = Benchmark.whole,
         just_metrics: bool = True,
         n_stratify: int = 5,
     ):
