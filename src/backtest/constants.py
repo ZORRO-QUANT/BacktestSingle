@@ -11,6 +11,7 @@ class Category(IntEnum):
     volatility_1d = auto()
     game_1d = auto()
     imbalance_1d = auto()
+    technical_1d = auto()
 
     imbalance_hf_1d = auto()
     liquidity_hf_1d = auto()
