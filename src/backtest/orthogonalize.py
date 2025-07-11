@@ -170,7 +170,7 @@ class OrthogonalAnalyzer:
                 start_time=self.start,
                 end_time=self.end,
                 groupby=self.groupby,
-                alphas=base_alphas_,
+                alpha_paths=base_alphas_,
                 symbols=data._stock_ids,
                 backtest_periods=self.backtest_periods,
                 data_sources=data_sources,
