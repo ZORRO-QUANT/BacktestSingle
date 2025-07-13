@@ -156,6 +156,7 @@ Thumbs.db
 *.ini
 !config.ini
 *.yml
+*.yaml
 
 # Log files
 *.log
