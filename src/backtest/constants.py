@@ -9,7 +9,6 @@ class Category(IntEnum):
     momentum_1d = auto()
     pv_1d = auto()
     volatility_1d = auto()
-    game_1d = auto()
     imbalance_1d = auto()
     technical_1d = auto()
 
