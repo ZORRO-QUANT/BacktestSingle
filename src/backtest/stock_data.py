@@ -1,8 +1,8 @@
 from itertools import chain
 from typing import Tuple
 
-import polars as pl
 import pandas as pd
+import polars as pl
 
 from .constants import *
 from .utils import *
@@ -24,7 +24,14 @@ class StockData:
         symbols: Union[List, None] = None,
         backtest_periods: Tuple[int] = (1,),
         device: torch.device = (
-            torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+            torch.device("cuda:0")
+            if torch.cuda.is_available()
+            else (
+                # torch.device("mps")
+                # if torch.backends.mps.is_available()
+                # else
+                torch.device("cpu")
+            )
         ),
     ) -> None:
 
@@ -63,11 +70,20 @@ class StockData:
 
         self.klines = self._get_kline()
 
+        # get the parent map
+        self.parent_map = self._parent_map()
+
         # mask alpha where there is no kline
         mask = torch.isnan(self.klines.unsqueeze(1).expand(self.alphas.shape))
         self.alphas[mask] = torch.nan
 
         logging.info(rf"everything has been put on {self.device}")
+
+    def _parent_map(self):
+        return {
+            stem.split(">")[0]: stem.split(">")[1]
+            for stem in (_file.stem for _file in self.alpha_paths)
+        }
 
     def _check(self) -> None:
         """
@@ -142,42 +158,11 @@ class StockData:
                         raise ValueError("agg_method should be one of `MA` and `STD`")
 
         # rename the symbols, eventually all the symbols are in the format of `BTCUSDT`
-        if (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_alphas = df_alphas.with_columns(
-                pl.col("symbol").map_elements(lambda x: "".join(x.split("-")[:2]))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_alphas = df_alphas.with_columns(
-                pl.col("symbol").map_elements(lambda x: x.replace("-", ""))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_alphas = df_alphas.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000000", "")
-                    .replace("1000", "")
-                    .replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_alphas = df_alphas.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000", "").replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        else:
-            pass
+        df_alphas = self.convert_symbols(
+            df_alphas,
+            exchange=self.data_sources.factor.exchange,
+            universe=self.data_sources.factor.universe,
+        )
 
         self.df_alphas = df_alphas.to_pandas()
 
@@ -225,28 +210,29 @@ class StockData:
 
     def encode_groups(self, df: pd.DataFrame, group_column: str) -> pd.DataFrame:
         # Loop through the enum and replace group names with the corresponding numeric values
-        if self.groupby.name.startswith("amount") and self.groupby.name.endswith("4"):
+        if (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("4"):
             for group_name, group_value in Amount4Group.__members__.items():
                 df.loc[df[group_column] == group_name, group_column] = float(
                     group_value
                 )
             return df
-        elif self.groupby.name.startswith("amount") and self.groupby.name.endswith("3"):
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("3"):
             for group_name, group_value in Amount3Group.__members__.items():
                 df.loc[df[group_column] == group_name, group_column] = float(
                     group_value
                 )
             return df
-        elif self.groupby.name.startswith("test") and self.groupby.name.endswith("3"):
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("2"):
             for group_name, group_value in Amount2Group.__members__.items():
-                df.loc[df[group_column] == group_name, group_column] = float(
-                    group_value
-                )
-            return df
-        elif self.groupby.name.startswith("liquidity") and self.groupby.name.endswith(
-            "3"
-        ):
-            for group_name, group_value in Liquidity3Group.__members__.items():
                 df.loc[df[group_column] == group_name, group_column] = float(
                     group_value
                 )
@@ -395,42 +381,11 @@ class StockData:
         )
 
         # rename the symbols, eventually all the symbols are in the format of `BTCUSDT`
-        if (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_kline = df_kline.with_columns(
-                pl.col("symbol").map_elements(lambda x: "".join(x.split("-")[:2]))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_kline = df_kline.with_columns(
-                pl.col("symbol").map_elements(lambda x: x.replace("-", ""))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_kline = df_kline.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000000", "")
-                    .replace("1000", "")
-                    .replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_kline = df_kline.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000", "").replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        else:
-            pass
+        df_kline = self.convert_symbols(
+            df_kline,
+            exchange=self.data_sources.kline.exchange,
+            universe=self.data_sources.kline.universe,
+        )
 
         self.df_kline = df_kline.to_pandas()
 
@@ -475,42 +430,11 @@ class StockData:
         )
 
         # rename the symbols, eventually all the symbols are in the format of `BTCUSDT`
-        if (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_group = df_group.with_columns(
-                pl.col("symbol").map_elements(lambda x: "".join(x.split("-")[:2]))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Okx
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_group = df_group.with_columns(
-                pl.col("symbol").map_elements(lambda x: x.replace("-", ""))
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.perp
-        ):
-            df_group = df_group.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000000", "")
-                    .replace("1000", "")
-                    .replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        elif (
-            self.data_sources.factor.exchange == Exchange.Binance
-            and self.data_sources.factor.universe == Universe.spot
-        ):
-            df_group = df_group.with_columns(
-                pl.col("symbol").map_elements(
-                    lambda x: x.replace("1000", "").replace("1MBABYDOGE", "BABYDOGE")
-                )
-            )
-        else:
-            pass
+        df_group = self.convert_symbols(
+            df_group,
+            exchange=self.data_sources.group.exchange,
+            universe=self.data_sources.group.universe,
+        )
 
         self.df_group = df_group.to_pandas()
         self.df_group["time"] = self.df_group["time"] + pd.Timedelta(
@@ -523,6 +447,49 @@ class StockData:
         self.df_group = self.df_group.stack(dropna=False).unstack(level=1)
         self.df_group = self.df_group.droplevel(1)
 
+    def convert_symbols(
+        self,
+        df: pl.DataFrame,
+        exchange: Exchange = Exchange.Binance,
+        universe: Universe = Universe.spot,
+    ):
+        """_summary_
+
+        Args:
+            df (pl.DataFrame): the input df we wanna convert
+            exchange (Exchange): the exchange of the df
+            universe (Universe): the universe of the df
+        """
+
+        # ----------------------------------
+        # convert the symbols
+        if exchange == Exchange.Binance and universe == Universe.perp:
+            df = df.with_columns(
+                pl.col("symbol").map_elements(
+                    lambda x: x.replace("1000000", "")
+                    .replace("1000", "")
+                    .replace("1MBABYDOGE", "BABYDOGE")
+                )
+            )
+        elif exchange == Exchange.Binance and universe == Universe.spot:
+            df = df.with_columns(
+                pl.col("symbol").map_elements(
+                    lambda x: x.replace("1000", "").replace("1MBABYDOGE", "BABYDOGE")
+                )
+            )
+        elif exchange == Exchange.Okx and universe == Universe.perp:
+            df_kline = df_kline.with_columns(
+                pl.col("symbol").map_elements(lambda x: "".join(x.split("-")[:2]))
+            )
+        elif exchange == Exchange.Okx and universe == Universe.spot:
+            df_kline = df_kline.with_columns(
+                pl.col("symbol").map_elements(lambda x: x.replace("-", ""))
+            )
+        else:
+            pass
+
+        return df
+
     @property
     def n_stocks(self) -> int:
         return len(self._stock_ids)
@@ -533,9 +500,15 @@ class StockData:
 
     @property
     def n_groups(self) -> int:
-        if self.groupby.name.startswith("Amount") and self.groupby.name.endswith("4"):
+        if (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("4"):
             return len(list(Amount4Group))
-        elif self.groupby.name.startswith("Amount") and self.groupby.name.endswith("3"):
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("3"):
             return len(list(Amount3Group))
         else:
             raise ValueError("under developing")
@@ -567,14 +540,21 @@ class StockData:
 
     @property
     def groups_names(self) -> List[str]:
-        if self.groupby.name.startswith("amount") and self.groupby.name.endswith("4"):
+        if (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("4"):
             return list(Amount4Group.__members__.keys())
-        elif self.groupby.name.startswith("amount") and self.groupby.name.endswith("3"):
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("3"):
             return list(Amount3Group.__members__.keys())
-        elif self.groupby.name.startswith("liquidity") and self.groupby.name.endswith(
-            "3"
-        ):
-            return list(Liquidity3Group.__members__.keys())
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("2"):
+            return list(Amount2Group.__members__.keys())
         else:
             raise ValueError("under developing")
 
@@ -635,6 +615,8 @@ class StockData:
                     inplace=True,
                 )
 
+                df["parent"] = df["alpha"].apply(lambda x: self.parent_map[x])
+
                 logging.info(rf"-> {evaluation.name} has been generated")
 
                 return df
@@ -653,6 +635,8 @@ class StockData:
                 df.rename(
                     columns={"level_1": "period", "level_2": "metrics"}, inplace=True
                 )
+
+                df["parent"] = df["alpha"].apply(lambda x: self.parent_map[x])
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 

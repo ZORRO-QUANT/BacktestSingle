@@ -2,9 +2,10 @@ import warnings
 
 import quantstats as qs
 from database import Reader
+
+from .constants import *
 from .performance import *
 from .stock_data import StockData
-from .constants import *
 from .utils import *
 
 warnings.filterwarnings("ignore")
@@ -90,6 +91,7 @@ class SingleAnalyzer:
 
             # ------------------------------------
             # get the stratified returns
+            # todo: still, need to use the group-wise benchmark return to compute the excess return
             stratified_returns_tensor, stratified_turnover_tensor = stratified_backtest(
                 alphas=data.alphas,
                 returns=data.returns,
@@ -219,6 +221,10 @@ class SingleAnalyzer:
 
         # ------------------------------------
         # loop over each alpha and save them one by one
+        # todo: add the cluster analysis
+        # sharpe compare
+        # return correlations
+        # return series regression result and so on
         for _alpha_name in data._alpha_names:
 
             # ------------------------------------
@@ -269,7 +275,7 @@ class SingleAnalyzer:
                 mode="basic",
                 sep=False,
                 internal="True",
-                compounded=True,
+                compounded=False,
                 periods_per_year=365,
                 match_dates=False,
             )

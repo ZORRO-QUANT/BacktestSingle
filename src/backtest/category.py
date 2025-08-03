@@ -1,21 +1,20 @@
 import asyncio
 import datetime
-from json import load
 import logging
 import warnings
+from json import load
 from pathlib import Path
-from typing import Tuple, Union, List
+from typing import List, Tuple, Union
 
 import pandas as pd
 
+from .constants import *
 from .performance import (
+    information_coefficient,
     information_coefficient_stats,
     rank_information_coefficient,
-    information_coefficient,
 )
-
 from .stock_data import StockData
-from .constants import *
 from .utils import load_config, save_to_excel, send_file_to_windows, sublist
 
 warnings.filterwarnings("ignore")

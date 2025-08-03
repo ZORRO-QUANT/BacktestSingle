@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import Literal, Optional
 from pathlib import Path
+from typing import Literal, Optional
 
 
 class Category(IntEnum):
+    size_1d = auto()
     liquidity_1d = auto()
     momentum_1d = auto()
     pv_1d = auto()
@@ -40,6 +41,8 @@ class Category(IntEnum):
     momentum_contract = auto()
     turnover_contract = auto()
     volatility_contract = auto()
+
+    group_MIDDLE_pool_10_seed_44_policy_LSTM_target_5 = auto()
 
 
 @dataclass
@@ -88,15 +91,22 @@ class Alpha:
     alpha: str
     aggregations: dict = field(default_factory=dict)
     freq: Optional[Literal["1h", "1d"]] = "1d"
+    parent: Optional[str] = None
 
     @property
     def path(self) -> Path:
-        return Path(f"Alphas/{self.freq}/{self.category.name}/{self.alpha}.csv")
+        if self.parent is None:
+            return Path(f"Alphas/{self.freq}/{self.category.name}/{self.alpha}.csv")
+        else:
+            return Path(
+                f"Alphas/{self.freq}/{self.category.name}/{self.alpha}>{self.parent}.csv"
+            )
 
 
 class GroupBy(IntEnum):
     amount_quarter_perp_3 = auto()
     amount_quarter_spot_3 = auto()
+    mcap_quarter_spot_3 = auto()
     amount_quarter_spot_4 = auto()
     no_group = auto()
 

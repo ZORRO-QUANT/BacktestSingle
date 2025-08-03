@@ -2,21 +2,19 @@ import datetime
 import logging
 import warnings
 from pathlib import Path
-from typing import Tuple, Union, List
-
-import torch
+from typing import List, Tuple, Union
 
 import pandas as pd
+import torch
 
-from .performance import (
-    information_coefficient_stats,
-    rank_information_coefficient,
-    information_coefficient,
-    nanstd,
-)
-
-from .stock_data import StockData
 from .constants import *
+from .performance import (
+    information_coefficient,
+    information_coefficient_stats,
+    nanstd,
+    rank_information_coefficient,
+)
+from .stock_data import StockData
 from .utils import load_config, save_to_excel, send_file_to_windows, sublist
 
 warnings.filterwarnings("ignore")

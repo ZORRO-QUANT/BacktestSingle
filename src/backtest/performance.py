@@ -801,6 +801,9 @@ def longshort_alpha_return(
         BacktestModes.LONG_SHORT,
     ], "please specify the mode parameter as one of [BacktestMode.LONG, BacktestMode.SHORT, BacktestMode.LONG_SHORT]"
 
+    # Step 0: compute the market return
+    return_mkt = return_.nanmean(dim=-1)  # (dates, alphas)
+
     # Step 1: change the sign of the alphas according to the sign of ics
     ic_sign = torch.sign(metric)
     ic_sign = torch.where(ic_sign == 0, 1.0, ic_sign)
@@ -894,6 +897,12 @@ def longshort_alpha_return(
         # Step 8: compute the daily returns
         multiple_returns += single_return
         turnovers += turnover
+
+    # Step 9: adjust the return to excess return if the mode is LONG or SHORT
+    if mode in [BacktestModes.LONG, BacktestModes.SHORT]:
+        multiple_returns = multiple_returns - return_mkt
+    else:
+        pass
 
     return multiple_returns, turnovers
 
