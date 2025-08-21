@@ -25,11 +25,8 @@ sns.set_palette("husl")
 
 warnings.filterwarnings("ignore")
 
-
 path_general = Path(load_config("path.yaml")["general"])
-
 path_local_general = Path(load_config("path.yaml")["local_general"])
-
 windows_server = load_config("server.yaml")["windows_server"]
 
 
@@ -65,19 +62,14 @@ class SingleAnalyzer:
         ), "Exactly one of parent or alphas must be should provided"
 
         # ------------------------------------
-
         # re-assign the alphas if self.alphas is None
-
         if self.alphas is None:
-
             self.alphas = self._get_children()
 
     def _get_children(self):
 
         # ------------------------------------
-
         # get all the children alphas which belong to the parent
-
         path_folder = (
             path_general
             / self.data_sources.factor.exchange.name
@@ -93,9 +85,7 @@ class SingleAnalyzer:
         ]
 
         # ------------------------------------
-
         # create all the alphas from the alpha_names
-
         alphas = [
             Alpha(
                 category=self.parent.category,
@@ -120,7 +110,6 @@ class SingleAnalyzer:
     ):
 
         # ------------------------------------
-
         # make the data
 
         for alpha in self.alphas:
