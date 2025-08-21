@@ -77,6 +77,8 @@ class Benchmark(IntEnum):
 
 class Evaluation(IntEnum):
     ics = auto()
+    cumics = auto()
+    alphas = auto()
     ic_metrics = auto()
     ret_metrics = auto()
     nvs = auto()
@@ -88,7 +90,7 @@ class Evaluation(IntEnum):
 @dataclass
 class Alpha:
     category: "Category"
-    alpha: str
+    name: str
     aggregations: dict = field(default_factory=dict)
     freq: Optional[Literal["1h", "1d"]] = "1d"
     parent: Optional[str] = None
@@ -96,11 +98,18 @@ class Alpha:
     @property
     def path(self) -> Path:
         if self.parent is None:
-            return Path(f"Alphas/{self.freq}/{self.category.name}/{self.alpha}.csv")
+            return Path(f"Alphas/{self.freq}/{self.category.name}/{self.name}.csv")
         else:
             return Path(
-                f"Alphas/{self.freq}/{self.category.name}/{self.alpha}>{self.parent}.csv"
+                f"Alphas/{self.freq}/{self.category.name}/{self.name}>{self.parent}.csv"
             )
+
+
+@dataclass
+class Parent:
+    category: "Category"
+    name: str
+    freq: Optional[Literal["1h", "1d"]] = "1d"
 
 
 class GroupBy(IntEnum):

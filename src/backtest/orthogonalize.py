@@ -24,10 +24,10 @@ path_local_general = Path(load_config("path.yaml")["local_general"])
 windows_server = load_config("server.yaml")["windows_server"]
 
 base_alphas = [
-    Alpha(category=Category.liquidity_1d, alpha="liq_amount", freq="1d"),
-    Alpha(category=Category.liquidity_1d, alpha="liq_trade", freq="1d"),
-    Alpha(category=Category.liquidity_1h, alpha="liq_regress_24", freq="1h"),
-    Alpha(category=Category.volatility_1d, alpha="vol_residual_20", freq="1d"),
+    Alpha(category=Category.liquidity_1d, name="liq_amount", freq="1d"),
+    Alpha(category=Category.liquidity_1d, name="liq_trade", freq="1d"),
+    Alpha(category=Category.liquidity_1h, name="liq_regress_24", freq="1h"),
+    Alpha(category=Category.volatility_1d, name="vol_residual_20", freq="1d"),
 ]
 
 

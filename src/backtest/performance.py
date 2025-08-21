@@ -18,6 +18,7 @@ def rank_information_coefficient(
     alphas: torch.Tensor,  # (dates, alphas, stocks)
     returns: torch.Tensor,  # (dates, periods, stocks)
     groups: Optional[torch.Tensor] = None,  # (dates, stocks)
+    n_stratify: int = 3,
     by_group: bool = False,
 ) -> torch.Tensor:
     """
@@ -126,13 +127,41 @@ def rank_information_coefficient(
 
     if not by_group:
 
-        # if not by group, directly compute the ics without masking
-        ic_values = compute_ics(alphas_exp, returns_exp)
+        # ----------------------------------------------------------
+        # 1) compute the total ic without stratification
+        ic_values_total = compute_ics(alphas_exp, returns_exp)
 
         # unsqueeze the last dim
-        ic_values = ic_values.unsqueeze(dim=-1)
+        ic_values_total = ic_values_total
 
-        return ic_values  # (dates, alphas, periods, 1)
+        # ----------------------------------------------------------
+        # 2) loop over the n_stratify and compute the stratified ic
+        layers_lst = []
+
+        for layer in range(n_stratify):
+            lower = layer / n_stratify
+            upper = (layer + 1) / n_stratify
+
+            layer_mask = (
+                alphas_exp >= torch.nanquantile(alphas_exp, lower, dim=-1, keepdim=True)
+            ) & (
+                alphas_exp <= torch.nanquantile(alphas_exp, upper, dim=-1, keepdim=True)
+            )
+
+            alphas_exp_mask = torch.where(layer_mask, alphas_exp, torch.nan)
+            returns_exp_mask = torch.where(layer_mask, returns_exp, torch.nan)
+
+            ic_values_layer = compute_ics(alphas_exp_mask, returns_exp_mask)
+            layers_lst.append(ic_values_layer)
+
+        layers_lst.append(ic_values_total)
+        ic_values_layers = torch.stack(layers_lst, dim=1)
+
+        ic_values_layers = ic_values_layers.unsqueeze(
+            dim=-1
+        )  # (dates, n_stratify + 1, alphas, periods, 1)
+
+        return ic_values_layers  # (dates, n_stratify + 1, alphas, periods, 1)
 
     else:
 
@@ -150,26 +179,64 @@ def rank_information_coefficient(
         # loop over the unqiue groups and create mask one by one
         for group in unique_groups:
             # create a mask where group_exp matches the current unique group
-            mask = group_exp == group
+            group_mask = group_exp == group
 
-            alphas_exp_mask = torch.where(mask, alphas_exp, torch.nan)
-            returns_exp_mask = torch.where(mask, returns_exp, torch.nan)
+            alphas_exp_group_mask = torch.where(group_mask, alphas_exp, torch.nan)
+            returns_exp_group_mask = torch.where(group_mask, returns_exp, torch.nan)
 
-            ic_values_group = compute_ics(alphas_exp_mask, returns_exp_mask)
-            groups_lst.append(ic_values_group)
+            ic_values_group_total = compute_ics(
+                alphas_exp_group_mask, returns_exp_group_mask
+            )
 
-        ic_values_groups = torch.stack(groups_lst, dim=1)
+            layers_lst = []
+
+            for layer in range(n_stratify):
+                lower = layer / n_stratify
+                upper = (layer + 1) / n_stratify
+
+                layer_mask = (
+                    alphas_exp_group_mask
+                    >= torch.nanquantile(
+                        alphas_exp_group_mask, lower, dim=-1, keepdim=True
+                    )
+                ) & (
+                    alphas_exp_group_mask
+                    <= torch.nanquantile(
+                        alphas_exp_group_mask, upper, dim=-1, keepdim=True
+                    )
+                )
+
+                alphas_exp_group_layer_mask = torch.where(
+                    layer_mask, alphas_exp_group_mask, torch.nan
+                )
+                returns_exp_group_layer_mask = torch.where(
+                    layer_mask, returns_exp_group_mask, torch.nan
+                )
+                ic_values_group_layer = compute_ics(
+                    alphas_exp_group_layer_mask, returns_exp_group_layer_mask
+                )
+                layers_lst.append(ic_values_group_layer)
+
+            layers_lst.append(ic_values_group_total)
+            ic_values_layers = torch.stack(
+                layers_lst, dim=1
+            )  # (dates, n_stratify + 1, alphas, periods, 1)
+
+            groups_lst.append(ic_values_layers)
+
+        ic_values_groups_layers = torch.stack(groups_lst, dim=1)
 
         # unsqueeze the last dim
-        ic_values_groups = ic_values_groups.unsqueeze(dim=-1)
+        ic_values_groups_layers = ic_values_groups_layers.unsqueeze(dim=-1)
 
-        return ic_values_groups  # (dates, groups, alphas, periods, 1)
+        return ic_values_groups_layers  # (dates, groups, n_stratify + 1, alphas, periods, 1)
 
 
 def information_coefficient(
     alphas: torch.Tensor,  # (dates, alphas, stocks)
     returns: torch.Tensor,  # (dates, periods, stocks)
     groups: Optional[torch.Tensor] = None,  # (dates, stocks)
+    n_stratify: int = 3,
     by_group: bool = False,
 ) -> torch.Tensor:
     """
@@ -261,13 +328,39 @@ def information_coefficient(
 
     if not by_group:
 
-        # if not by group, directly compute the ics without masking
-        ic_values = compute_ics(alphas_exp, returns_exp)
+        # ----------------------------------------------------------
+        # 1) compute the total ic without stratification
+        ic_values_total = compute_ics(alphas_exp, returns_exp)
 
         # unsqueeze the last dim
-        ic_values = ic_values.unsqueeze(dim=-1)
+        ic_values_total = ic_values_total.unsqueeze(dim=-1)
 
-        return ic_values  # (dates, alphas, periods, 1)
+        # ----------------------------------------------------------
+        # 2) loop over the n_stratify and compute the stratified ic
+        layers_lst = []
+
+        for layer in range(n_stratify):
+            lower = layer / n_stratify
+            upper = (layer + 1) / n_stratify
+
+            layer_mask = (
+                alphas_exp >= torch.nanquantile(alphas_exp, lower, dim=-1, keepdim=True)
+            ) & (
+                alphas_exp <= torch.nanquantile(alphas_exp, upper, dim=-1, keepdim=True)
+            )
+
+            alphas_exp_mask = torch.where(layer_mask, alphas_exp, torch.nan)
+            returns_exp_mask = torch.where(layer_mask, returns_exp, torch.nan)
+
+            ic_values_layer = compute_ics(alphas_exp_mask, returns_exp_mask)
+            layers_lst.append(ic_values_layer)
+
+        layers_lst.append(ic_values_total)
+        ic_values_layers = torch.stack(
+            layers_lst, dim=1
+        )  # (dates, n_stratify + 1, alphas, periods, 1)
+
+        return ic_values_layers  # (dates, n_stratify + 1, alphas, periods, 1)
 
     else:
 
@@ -285,20 +378,57 @@ def information_coefficient(
         # loop over the unqiue groups and create mask one by one
         for group in unique_groups:
             # create a mask where group_exp matches the current unique group
-            mask = group_exp == group
+            group_mask = group_exp == group
 
-            alphas_exp_mask = torch.where(mask, alphas_exp, torch.nan)
-            returns_exp_mask = torch.where(mask, returns_exp, torch.nan)
+            alphas_exp_group_mask = torch.where(group_mask, alphas_exp, torch.nan)
+            returns_exp_group_mask = torch.where(group_mask, returns_exp, torch.nan)
 
-            ic_values_group = compute_ics(alphas_exp_mask, returns_exp_mask)
-            groups_lst.append(ic_values_group)
+            ic_values_group_total = compute_ics(
+                alphas_exp_group_mask, returns_exp_group_mask
+            )
 
-        ic_values_groups = torch.stack(groups_lst, dim=1)
+            layers_lst = []
+
+            for layer in range(n_stratify):
+                lower = layer / n_stratify
+                upper = (layer + 1) / n_stratify
+
+                layer_mask = (
+                    alphas_exp_group_mask
+                    >= torch.nanquantile(
+                        alphas_exp_group_mask, lower, dim=-1, keepdim=True
+                    )
+                ) & (
+                    alphas_exp_group_mask
+                    <= torch.nanquantile(
+                        alphas_exp_group_mask, upper, dim=-1, keepdim=True
+                    )
+                )
+
+                alphas_exp_group_layer_mask = torch.where(
+                    layer_mask, alphas_exp_group_mask, torch.nan
+                )
+                returns_exp_group_layer_mask = torch.where(
+                    layer_mask, returns_exp_group_mask, torch.nan
+                )
+                ic_values_group_layer = compute_ics(
+                    alphas_exp_group_layer_mask, returns_exp_group_layer_mask
+                )
+                layers_lst.append(ic_values_group_layer)
+
+            layers_lst.append(ic_values_group_total)
+            ic_values_layers = torch.stack(
+                layers_lst, dim=1
+            )  # (dates, n_stratify + 1, alphas, periods, 1)
+
+            groups_lst.append(ic_values_layers)
+
+        ic_values_groups_layers = torch.stack(groups_lst, dim=1)
 
         # unsqueeze the last dim
-        ic_values_groups = ic_values_groups.unsqueeze(dim=-1)
+        ic_values_groups_layers = ic_values_groups_layers.unsqueeze(dim=-1)
 
-        return ic_values_groups  # (dates, groups, alphas, periods, 1)
+        return ic_values_groups_layers  # (dates, groups, n_stratify + 1,, alphas, periods, 1)
 
 
 def information_coefficient_stats(ics: torch.Tensor) -> torch.Tensor:
@@ -367,6 +497,9 @@ def information_coefficient_stats(ics: torch.Tensor) -> torch.Tensor:
     )
 
     return metrics.unsqueeze(dim=-1)
+
+    # (groups, n_stratify + 1, alpha, periods, n_metrics, 1) if by_group
+    # (n_stratify + 1, alpha, periods, n_metrics, 1) if not by_group
 
 
 def stratification_stats(return_: torch.Tensor, turnover: torch.Tensor) -> torch.Tensor:
@@ -899,8 +1032,10 @@ def longshort_alpha_return(
         turnovers += turnover
 
     # Step 9: adjust the return to excess return if the mode is LONG or SHORT
-    if mode in [BacktestModes.LONG, BacktestModes.SHORT]:
+    if mode == BacktestModes.LONG:
         multiple_returns = multiple_returns - return_mkt
+    elif mode == BacktestModes.SHORT:
+        multiple_returns = return_mkt + multiple_returns
     else:
         pass
 
@@ -927,18 +1062,7 @@ def stratified_alpha_return(
     :return: the returns of each alpha on each day, the turnover of each alpha, averaged over the dates
     """
 
-    # Step 0: compute the market ret, clip the return_ at the 5% and 95% percentile
-    # Compute quantiles for clipping
-    lower_bound = torch.nanquantile(return_, 0.05, dim=-1, keepdim=True)
-    upper_bound = torch.nanquantile(return_, 0.95, dim=-1, keepdim=True)
-
-    # Clip using torch.where
-    return_mkt = torch.where(return_ < lower_bound, lower_bound, return_)
-    return_mkt = torch.where(return_mkt > upper_bound, upper_bound, return_mkt)
-
-    return_mkt = return_mkt.nanmean(dim=-1)  # (dates, alphas)
-
-    # deselect the corresponding alphas and returns according to the mask_group
+    # de-select the corresponding alphas and returns according to the mask_group
     if mask_group is not None:
         alphas = torch.where(mask_group, alphas, torch.nan)
         return_ = torch.where(mask_group, return_, torch.nan)
@@ -946,10 +1070,10 @@ def stratified_alpha_return(
     else:
         pass
 
-    # Step 1: change the sign of the alphas according to the sign of ics
-    ic_sign = torch.sign(metric)
-    ic_sign = torch.where(ic_sign == 0, 1.0, ic_sign)
-    alphas = alphas * ic_sign
+    # Step 0: get the block benchmark return
+    return_mkt = return_.nanmean(dim=-1)  # (dates, )
+
+    # Step 1: get the nan_mask
     nan_mask = torch.isnan(alphas)
 
     # Step 2: generate the layer mask according to layer and n_stratify
@@ -1015,28 +1139,42 @@ def stratified_alpha_return(
         weights_temp = torch.cat((buff_, weights_temp), dim=0)
         weights_temp = weights_temp[:n_dates, :, :]
 
-        # Step 7: compute the daily returns
-        single_return = (weights_temp * return_).nansum(
-            dim=-1
-        ) - commission * turnover_temp * 2  # (dates, 1)
+        # Step 7: compute the daily excess returns
+        # (dates, stocks)
+        single_return = (weights_temp * return_).nansum(dim=-1) - return_mkt * (
+            1 / backtest_period
+        )
 
-        # Step 8: compute the daily returns
+        # Step 8: compute the mean return and decide add or deduct the commission fee
+        mean_excess_ret = single_return.mean()
+
+        if mean_excess_ret > 0:
+            single_return -= float(commission) * turnover_temp * 2
+        else:
+            single_return += float(commission) * turnover_temp * 2
+
+        # Step 10: compute the daily returns
         multiple_returns += single_return
         turnovers += turnover
 
-    multiple_returns = multiple_returns - return_mkt
-
+    # (dates, ) (1, )
     return multiple_returns, turnovers
 
 
-def return2netvalue(returns: torch.Tensor):
-    """';
-    :param returns:
-    :return:
-    """
-    returns = returns + 1.0
+def return2netvalue(returns: torch.Tensor, compound: bool = True):
+    """Convert returns to net value (净值)
 
-    return torch.cumprod(returns, dim=0)
+    :param returns: Return series tensor
+    :param compound: If True, use compound interest (复利); if False, use simple interest (单利)
+    :return: Net value series
+    """
+    if compound:
+        # 复利：累积乘积
+        returns = returns + 1.0
+        return torch.cumprod(returns, dim=0)
+    else:
+        # 单利：累积求和
+        return 1.0 + torch.cumsum(returns, dim=0)
 
 
 def ic2cumsum(ic: torch.Tensor):
@@ -1048,13 +1186,21 @@ def ic2cumsum(ic: torch.Tensor):
     return torch.cumsum(ic, dim=0)
 
 
-def return2drawdown(returns: torch.Tensor):
-    """
+def return2drawdown(returns: torch.Tensor, compound: bool = True):
+    """Convert returns to drawdown series
+
     :param returns: (dates, groups, combos, periods, 1) if groupby else (dates, groups, periods, 1)
-    :return:
+    :param compound: If True, use compound interest (复利); if False, use simple interest (单利)
+    :return: Drawdown series
     """
-    returns = returns + 1.0
-    portfolio_values = torch.cumprod(returns, dim=0)
+    if compound:
+        # 复利：累积乘积
+        returns = returns + 1.0
+        portfolio_values = torch.cumprod(returns, dim=0)
+    else:
+        # 单利：累积求和
+        portfolio_values = 1.0 + torch.cumsum(returns, dim=0)
+
     running_max = torch.cummax(portfolio_values, dim=0)[0]
     drawdowns = (portfolio_values - running_max) / running_max
 

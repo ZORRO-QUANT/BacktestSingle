@@ -7,7 +7,7 @@ from backtest.constants import *
 if __name__ == "__main__":
     # ------------------------------------
     # here we specify the start and end of the klines, NOT the alphas
-    start = datetime.datetime(2022, 1, 1, 8, 0, 0)
+    start = datetime.datetime(2023, 1, 1, 8, 0, 0)
     end = datetime.datetime(2025, 6, 30, 8, 0, 0)
 
     # ------------------------------------
@@ -15,27 +15,30 @@ if __name__ == "__main__":
     symbols = None
 
     groupby = GroupBy.amount_quarter_spot_3
-    chunk_size = 30
+    chunk_size = 20
     backtest_periods = (1, 3, 5, 7, 9, 15)
 
     by_group = True
 
     # aggregations = {"STD": [6, 12, 24, 48], "MA": [6, 12, 24, 48]}
-    # aggregations = {"STD": [5, 10], "MA": [5, 10]}
+    # aggregations = {"STD": [5, 10, 15, 20], "MA": [5, 10, 15, 20]}
     aggregations = {}
+
+    n_ic_layers = 3
 
     # ------------------------------------
     # state all the alpha categories we want to compute
     categories = [
-        # Category.liquidity_1d,
-        # Category.momentum_1d,
-        # Category.pv_1d,
+        # Category.liquidity_1h,
+        # Category.imbalance_1h,
+        # Category.momentum_1h,
+        # Category.pv_1h,
+        # Category.volatility_1h,
         # Category.volatility_1d,
-        Category.imbalance_1d,
-        # Category.liquidity_contract,
-        # Category.size_1d,
         # Category.development_1d,
-        # Category.technical_1d,
+        # Category.momentum_1d,
+        # Category.momentum_hf_1d,
+        Category.liquidity_1d,
     ]
 
     data_sources = DataSources(
@@ -49,6 +52,7 @@ if __name__ == "__main__":
         end=end,
         symbols=symbols,
         categories=categories,
+        n_ic_layers=n_ic_layers,
         groupby=groupby,
         chunk_size=chunk_size,
         by_group=by_group,

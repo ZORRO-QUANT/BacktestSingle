@@ -32,6 +32,7 @@ class CategoryAnalyzer:
         categories: List[Category],
         groupby: GroupBy,
         chunk_size: int,
+        n_ic_layers: int,
         backtest_periods: Tuple,
         by_group: bool,
         symbols: Union[List[str], None] = None,
@@ -43,6 +44,7 @@ class CategoryAnalyzer:
         self.categories = categories
         self.groupby = groupby
         self.chunk_size = chunk_size
+        self.n_ic_layers = n_ic_layers
         self.backtest_periods = backtest_periods
         self.by_group = by_group
         self.symbols = symbols
@@ -69,7 +71,6 @@ class CategoryAnalyzer:
 
             # ------------------------------------
             # find the correct path, it should be results / groupby / kline_info / category
-
             path_remote = (
                 path_general
                 / data_sources.kline.exchange.name
@@ -138,6 +139,7 @@ class CategoryAnalyzer:
             data = StockData(
                 start_time=self.start,
                 end_time=self.end,
+                n_ic_layers=self.n_ic_layers,
                 groupby=self.groupby,
                 alpha_paths=alphas_,
                 aggregations=aggregations,
@@ -149,6 +151,7 @@ class CategoryAnalyzer:
             # ------------------------------------
             # compute the rankic
             rankic_tensor = rank_information_coefficient(
+                n_stratify=self.n_ic_layers,
                 alphas=data.alphas,
                 returns=data.returns,
                 groups=data.groups,
@@ -158,6 +161,7 @@ class CategoryAnalyzer:
             # ------------------------------------
             # compute the ic
             ic_tensor = information_coefficient(
+                n_stratify=self.n_ic_layers,
                 alphas=data.alphas,
                 returns=data.returns,
                 groups=data.groups,

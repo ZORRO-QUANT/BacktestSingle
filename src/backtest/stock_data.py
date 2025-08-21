@@ -20,6 +20,7 @@ class StockData:
         alpha_paths: List[Path],
         data_sources: DataSources,
         n_stratify: int = 5,
+        n_ic_layers: int = 3,
         aggregations: dict = dict(),
         symbols: Union[List, None] = None,
         backtest_periods: Tuple[int] = (1,),
@@ -39,6 +40,7 @@ class StockData:
         self._end_time = end_time
         self.groupby = groupby
         self.n_stratify = n_stratify
+        self._n_ic_layers = n_ic_layers
         self.alpha_paths = alpha_paths
         self.symbols = symbols
         self.data_sources = data_sources
@@ -77,7 +79,7 @@ class StockData:
         mask = torch.isnan(self.klines.unsqueeze(1).expand(self.alphas.shape))
         self.alphas[mask] = torch.nan
 
-        logging.info(rf"everything has been put on {self.device}")
+        logging.info(rf"-> everything has been put on {self.device}")
 
     def _parent_map(self):
         return {
@@ -240,6 +242,32 @@ class StockData:
         else:
             raise ValueError("Under Development")
 
+    def decode_groups(self, df: pd.DataFrame, group_column: str) -> pd.DataFrame:
+        # Loop through the enum and replace group names with the corresponding numeric values
+        if (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("4"):
+            for group_name, group_value in Amount4Group.__members__.items():
+                df.loc[df[group_column] == group_value, group_column] = group_name
+            return df
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("3"):
+            for group_name, group_value in Amount3Group.__members__.items():
+                df.loc[df[group_column] == group_value, group_column] = group_name
+            return df
+        elif (
+            self.groupby.name.startswith("amount")
+            or self.groupby.name.startswith("mcap")
+        ) and self.groupby.name.endswith("2"):
+            for group_name, group_value in Amount2Group.__members__.items():
+                df.loc[df[group_column] == group_value, group_column] = group_name
+            return df
+        else:
+            raise ValueError("Under Development")
+
     def _format(self) -> None:
         return_date_index = self.df_returns.index.levels[0]
 
@@ -279,7 +307,7 @@ class StockData:
             self.df_returns = self.df_returns[common_stocks]
             self.df_kline = self.df_kline[common_stocks]
 
-        logging.info("formatting is done")
+        logging.info("-> formatting is done")
 
         return
 
@@ -526,6 +554,10 @@ class StockData:
         return self.n_stratify
 
     @property
+    def n_ic_layers(self) -> int:
+        return self._n_ic_layers
+
+    @property
     def periods(self) -> List[str]:
         freq = self.data_sources.kline.freq[-1].upper()
 
@@ -536,6 +568,12 @@ class StockData:
     @property
     def layers(self) -> List[str]:
         periods = [rf"layer_{layer}" for layer in range(1, 1 + self.n_stratify)]
+        return periods
+
+    @property
+    def ic_layers(self) -> List[str]:
+        periods = [rf"layer_{layer}" for layer in range(1, 1 + self.n_ic_layers)]
+        periods.append("all")
         return periods
 
     @property
@@ -591,11 +629,12 @@ class StockData:
         if evaluation == Evaluation.ic_metrics:
 
             if by_group:
-                n_groups, n_alphas, n_periods, n_metrics, _ = data.shape
+                n_groups, n_ic_layers, n_alphas, n_periods, n_metrics, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
                     [
                         self.groups_names,
+                        self.ic_layers,
                         self._alpha_names,
                         self.periods,
                         self.metrics_ic,
@@ -603,82 +642,135 @@ class StockData:
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(
+                df_alpha.rename(
                     columns={
                         "level_0": "group",
+                        "level_1": "layer",
+                        "level_3": "period",
+                        "level_4": "metrics",
+                    },
+                    inplace=True,
+                )
+
+                df_alpha["parent"] = df_alpha["alpha"].apply(
+                    lambda x: self.parent_map[x]
+                )
+
+                logging.info(rf"-> {evaluation.name} has been generated")
+
+                return df_alpha
+
+            else:
+                n_ic_layers, n_alphas, n_periods, n_metrics, _ = data.shape
+
+                index = pd.MultiIndex.from_product(
+                    [self.ic_layers, self._alpha_names, self.periods, self.metrics_ic]
+                )
+                data = data.reshape(-1, 1)
+
+                df_alpha = pd.DataFrame(
+                    data.detach().cpu().numpy(), index=index, columns=["value"]
+                ).reset_index()
+                df_alpha.rename(
+                    columns={
+                        "level_0": "layer",
                         "level_2": "period",
                         "level_3": "metrics",
                     },
                     inplace=True,
                 )
 
-                df["parent"] = df["alpha"].apply(lambda x: self.parent_map[x])
+                df_alpha["parent"] = df_alpha["alpha"].apply(
+                    lambda x: self.parent_map[x]
+                )
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
-            else:
-                n_alphas, n_periods, n_metrics, _ = data.shape
-
-                index = pd.MultiIndex.from_product(
-                    [self._alpha_names, self.periods, self.metrics_ic]
-                )
-                data = data.reshape(-1, 1)
-
-                df = pd.DataFrame(
-                    data.detach().cpu().numpy(), index=index, columns=["value"]
-                ).reset_index()
-                df.rename(
-                    columns={"level_1": "period", "level_2": "metrics"}, inplace=True
-                )
-
-                df["parent"] = df["alpha"].apply(lambda x: self.parent_map[x])
-
-                logging.info(rf"-> {evaluation.name} has been generated")
-
-                return df
-
-        elif evaluation == Evaluation.ics:
+        elif evaluation == Evaluation.alphas:
 
             if by_group:
-                n_dates, n_groups, n_alphas, n_periods, _ = data.shape
 
-                index = pd.MultiIndex.from_product(
-                    [self._dates, self.groups_names, self._alpha_names, self.periods]
-                )
-                data = data.reshape(-1, 1)
+                df_alpha = self.df_alphas.copy()
 
-                df = pd.DataFrame(
-                    data.detach().cpu().numpy(), index=index, columns=["value"]
-                ).reset_index()
-                df.rename(
-                    columns={"level_1": "group", "level_3": "period"}, inplace=True
-                )
+                df_group = self.df_group.copy()
 
+                df_alpha = df_alpha.stack().reset_index().rename(columns={0: "value"})
+                df_group = df_group.stack().reset_index().rename(columns={0: "group"})
+
+                df_alpha = df_group.merge(df_alpha, on=["date", "symbol"], how="left")
+                df_alpha = self.decode_groups(df=df_alpha, group_column="group")
+
+                df_alpha.dropna(inplace=True)
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
             else:
-                n_dates, n_alphas, n_periods, _ = data.shape
+
+                df_alpha = self.df_alphas.copy()
+                df_alpha = df_alpha.stack().reset_index().rename(columns={0: "value"})
+                df_alpha["group"] = "WHOLE"
+
+                df_alpha.dropna(inplace=True)
+                logging.info(rf"-> {evaluation.name} has been generated")
+
+                return df_alpha
+
+        elif evaluation in [Evaluation.ics, Evaluation.cumics]:
+
+            if by_group:
+                n_dates, n_groups, n_ic_layers, n_alphas, n_periods, _ = data.shape
 
                 index = pd.MultiIndex.from_product(
-                    [self._dates, self._alpha_names, self.periods]
+                    [
+                        self._dates,
+                        self.groups_names,
+                        self.ic_layers,
+                        self._alpha_names,
+                        self.periods,
+                    ]
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(columns={"level_2": "periods"}, inplace=True)
+                df_alpha.rename(
+                    columns={
+                        "level_1": "group",
+                        "level_2": "layer",
+                        "level_4": "period",
+                    },
+                    inplace=True,
+                )
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
+
+            else:
+                n_dates, n_ic_layers, n_alphas, n_periods, _ = data.shape
+
+                index = pd.MultiIndex.from_product(
+                    [self._dates, self.ic_layers, self._alpha_names, self.periods]
+                )
+                data = data.reshape(-1, 1)
+
+                df_alpha = pd.DataFrame(
+                    data.detach().cpu().numpy(), index=index, columns=["value"]
+                ).reset_index()
+                df_alpha.rename(
+                    columns={"level_1": "layer", "level_3": "period"}, inplace=True
+                )
+
+                logging.info(rf"-> {evaluation.name} has been generated")
+
+                return df_alpha
 
         elif evaluation in [Evaluation.nvs, Evaluation.drawdowns, Evaluation.returns]:
 
@@ -696,10 +788,10 @@ class StockData:
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(
+                df_alpha.rename(
                     columns={
                         "level_2": "group",
                         "level_3": "mode",
@@ -710,7 +802,7 @@ class StockData:
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
             else:
                 n_dates, n_alphas, n_modes, n_periods, _ = data.shape
@@ -720,16 +812,16 @@ class StockData:
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(
+                df_alpha.rename(
                     columns={"level_2": "mode", "level_3": "period"}, inplace=True
                 )
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
         elif evaluation == Evaluation.turnover:
 
@@ -746,10 +838,10 @@ class StockData:
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(
+                df_alpha.rename(
                     columns={
                         "level_1": "group",
                         "level_2": "mode",
@@ -760,7 +852,7 @@ class StockData:
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
             else:
                 n_alphas, n_modes, n_periods, _ = data.shape
@@ -770,16 +862,16 @@ class StockData:
                 )
                 data = data.reshape(-1, 1)
 
-                df = pd.DataFrame(
+                df_alpha = pd.DataFrame(
                     data.detach().cpu().numpy(), index=index, columns=["value"]
                 ).reset_index()
-                df.rename(
+                df_alpha.rename(
                     columns={"level_1": "mode", "level_2": "period"}, inplace=True
                 )
 
                 logging.info(rf"-> {evaluation.name} has been generated")
 
-                return df
+                return df_alpha
 
     def make_dataframe_stratification(
         self,
@@ -905,5 +997,55 @@ class StockData:
                 )
 
                 logging.info(rf"-> stratify {evaluation.name} has been generated")
+
+                return df
+
+        elif evaluation == Evaluation.turnover:
+
+            if by_group:
+                n_alphas, n_groups, n_layers, n_periods, _ = data.shape
+
+                index = pd.MultiIndex.from_product(
+                    [
+                        self._alpha_names,
+                        self.groups_names,
+                        self.layers,
+                        self.periods,
+                    ]
+                )
+                data = data.reshape(-1, 1)
+
+                df = pd.DataFrame(
+                    data.detach().cpu().numpy(), index=index, columns=["value"]
+                ).reset_index()
+                df.rename(
+                    columns={
+                        "level_1": "group",
+                        "level_2": "layer",
+                        "level_3": "period",
+                    },
+                    inplace=True,
+                )
+
+                logging.info(rf"-> {evaluation.name} has been generated")
+
+                return df
+
+            else:
+                n_alphas, n_layers, n_periods, _ = data.shape
+
+                index = pd.MultiIndex.from_product(
+                    [self._alpha_names, self.layers, self.periods]
+                )
+                data = data.reshape(-1, 1)
+
+                df = pd.DataFrame(
+                    data.detach().cpu().numpy(), index=index, columns=["value"]
+                ).reset_index()
+                df.rename(
+                    columns={"level_1": "layer", "level_2": "period"}, inplace=True
+                )
+
+                logging.info(rf"-> {evaluation.name} has been generated")
 
                 return df
